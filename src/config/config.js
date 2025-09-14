@@ -74,8 +74,8 @@ module.exports = {
   cloudinary: {
     name: envVars.CLOUDINARY_NAME,
     apiKey: envVars.CLOUDINARY_API_KEY,
-    apiSecret: envVars.CLOUDINARY_API_SECRET
-  }
+    apiSecret: envVars.CLOUDINARY_API_SECRET,
+  },
   // logtail: {
   //   apiKey: envVars.LOGTAIL_API_KEY,
   //   endpoint: `https://${envVars.LOGTAIL_INGESTING_HOST}`,

@@ -9,10 +9,10 @@ mongoose
   .then(() => {
     // logger.info(`Connected to MongoDB on ${config.mongoose.url}`);
     server = app.listen(config.port, () => {
-      console.log(`Api is running on http://localhost:${config.port}`);
+      // console.log(`Api is running on http://localhost:${config.port}`);
     });
   })
-  .catch((error) => {
+  .catch(() => {
     // logger.error(`MongoDB connection error: ${error}`);
     process.exit(1);
   });
@@ -20,7 +20,7 @@ mongoose
 const exitHandler = () => {
   if (server) {
     server.close(() => {
-      logger.info('Server closed');
+      // logger.info('Server closed');
       process.exit(1);
     });
   } else {
@@ -28,7 +28,7 @@ const exitHandler = () => {
   }
 };
 
-const unexpectedErrorHandler = (error) => {
+const unexpectedErrorHandler = () => {
   // logger.error(`unexpected error: ${error.message} ${error.stack}`);
   exitHandler();
 };

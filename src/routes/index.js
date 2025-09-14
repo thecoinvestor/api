@@ -7,5 +7,6 @@ router.get('/health', (req, res) => {
 });
 
 router.use('/profile', require('./profile.routes'));
+router.use('/admin', require('./admin.routes'));
 
 module.exports = router;

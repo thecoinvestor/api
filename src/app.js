@@ -3,7 +3,6 @@ const helmet = require('helmet');
 const mongoSanitize = require('express-mongo-sanitize');
 const compression = require('compression');
 const cors = require('cors');
-const httpStatus = require('http-status');
 const cookieParser = require('cookie-parser');
 const morgan = require('./config/morgan.js');
 const config = require('./config/config.js');
@@ -61,7 +60,7 @@ app.use('/v1', routes);
 
 // send back a 404 error for any unknown api request
 app.use((req, res, next) => {
-  next(new ApiError(httpStatus.NOT_FOUND, 'Not found'));
+  next(new ApiError(404, 'Not found'));
 });
 
 // convert error to ApiError, if needed
