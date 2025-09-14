@@ -52,14 +52,8 @@ const auth = betterAuth({
         const userId = ctx.context.newSession.user?.id;
 
         if (userId) {
-          try {
-            const { profileService } = require('../services/index.js');
-            await profileService.createProfile(userId);
-          } catch {
-            // console.error(`Failed to create profile for user ${userId}:`, error);
-          }
-        } else {
-          // console.error('No userId found in newSession context:', ctx.context.newSession);
+          const { profileService } = require('../services/index.js');
+          await profileService.createProfile(userId);
         }
       }
     }),

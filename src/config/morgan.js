@@ -50,7 +50,9 @@ morgan.token('x-client-path', function (req) {
 const morganMiddleware = morgan(
   ':method :url :status-color :response-time ms - :res[content-length] X-Client-Path=:x-client-path IP=:ip User-Agent=:user-agent',
   {
-    stream: {},
+    stream: {
+      write: (message) => message.trim(),
+    },
     skip: shouldIgnoreRequest,
   },
 );
