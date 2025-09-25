@@ -62,6 +62,22 @@ app.options('*', cors());
 // better-auth routes
 app.all('/api/auth/*', toNodeHandler(auth));
 
+// Add this after your CORS setup and before app.use('/v1', routes)
+app.get('/', (req, res) => {
+  res.json({
+    message: 'Coinvestor API is running!',
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'OK',
+    mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+  });
+});
+
 app.use('/v1', routes);
 
 // send back a 404 error for any unknown api request
