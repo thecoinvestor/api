@@ -48,8 +48,14 @@ module.exports = {
     email: envVars.ADMIN_EMAIL,
   },
   mongoose: {
-    url: envVars.MONGODB_URL,
-    options: {},
+    url: process.env.MONGODB_URL,
+    options: {
+      maxPoolSize: 10,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+      //   bufferCommands: false,
+      //   bufferMaxEntries: 0,
+    },
   },
   jwt: {
     secret: envVars.JWT_SECRET,

@@ -11,6 +11,12 @@ const { errorConverter, errorHandler } = require('./middlewares/error.middleware
 const ApiError = require('./utils/ApiError.js');
 const { toNodeHandler } = require('better-auth/node');
 const auth = require('./config/auth.js');
+const mongoose = require('mongoose');
+
+// Add MongoDB connection for Vercel
+if (process.env.NODE_ENV === 'production') {
+  mongoose.connect(config.mongoose.url, config.mongoose.options);
+}
 
 const app = express();
 
