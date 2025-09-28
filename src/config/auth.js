@@ -44,6 +44,11 @@ const auth = betterAuth({
         required: false,
         defaultValue: 'upload',
       },
+      isAdmin: {
+        type: 'boolean',
+        required: false,
+        defaultValue: false
+      }
     },
   },
   hooks: {
