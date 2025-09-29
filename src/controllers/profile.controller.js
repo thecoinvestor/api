@@ -42,13 +42,13 @@ const uploadFile = catchAsync(async (req, res) => {
 
   const redirectUrl = kycStatus.completed ? 'dashboard' : 'upload';
 
-    await auth.db.collection('user').updateOne(
-        { _id: new ObjectId(userId) },
-        {
-            $set: { redirectUrl, isAdmin: false },
-            $currentDate: { updatedAt: true }
-        }
-    );
+  await auth.db.collection('user').updateOne(
+    { _id: new ObjectId(userId) },
+    {
+      $set: { redirectUrl, isAdmin: false },
+      $currentDate: { updatedAt: true },
+    },
+  );
 
   res.status(200).json({
     success: true,

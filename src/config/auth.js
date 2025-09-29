@@ -47,8 +47,8 @@ const auth = betterAuth({
       isAdmin: {
         type: 'boolean',
         required: false,
-        defaultValue: false
-      }
+        defaultValue: false,
+      },
     },
   },
   hooks: {

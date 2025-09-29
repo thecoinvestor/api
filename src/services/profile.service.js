@@ -260,8 +260,6 @@ const getInvestmentData = async (userId) => {
         amount: purchase.amount,
         startDate,
         daysLeft,
-        currentValue: purchase.amount * 1.05,
-        projectedValue: purchase.amount * 1.05,
         status: daysLeft > 0 ? 'active' : 'matured',
       };
     });
