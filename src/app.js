@@ -10,8 +10,9 @@ const routes = require('./routes/index.js');
 const { errorConverter, errorHandler } = require('./middlewares/error.middleware.js');
 const ApiError = require('./utils/ApiError.js');
 const { toNodeHandler } = require('better-auth/node');
-const auth = require('./config/auth.js');
+// const auth = require('./auth/aut');
 const mongoose = require('mongoose');
+const auth = require('./config/auth.js');
 
 // Add MongoDB connection for Vercel
 if (process.env.NODE_ENV === 'production') {

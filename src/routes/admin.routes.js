@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/admin.controller');
-const { authMiddleware } = require('../middlewares/auth.middleware');
+const { adminMiddleware } = require('../middlewares/auth.middleware');
 const multer = require('multer');
 
 const uploader = multer({
@@ -23,7 +23,7 @@ const uploader = multer({
   },
 });
 
-router.use(authMiddleware);
+router.use(adminMiddleware);
 
 // Users management
 router.get('/users', adminController.getAllUsers);

@@ -194,10 +194,10 @@ const getDashboardData = catchAsync(async (req, res) => {
         name: user.name || 'User',
         email: user.email || '',
         phone: user.phoneNumber || '',
-        phoneNumberVerified: user.phoneNumberVerified ? 'verified' : 'not-verified',
+        emailVerified: user.emailVerified ? 'verified' : 'not-verified',
         documentsVerified: kycStatus.verified ? 'verified' : kycStatus.completed ? 'pending' : 'not-verified',
         totalCoins: profile.balance,
-        totalValue: profile.balance, // Assuming 1 coin = 1 rupee
+        totalValue: profile.balance,
         coinvestorId: profile.coinvestorId,
       },
       investments: investments,

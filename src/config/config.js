@@ -29,8 +29,10 @@ const envVarsSchema = Joi.object()
     CLOUDINARY_API_KEY: Joi.string().required().description('cloudinary api key'),
     CLOUDINARY_API_SECRET: Joi.string().required().description('cloudinary api secret'),
 
-    // LOGTAIL_API_KEY: Joi.string().required().description('API key for Logtail'),
-    // LOGTAIL_INGESTING_HOST: Joi.string().required().description('Logtail ingestion host'),
+    MAILGUN_API_KEY: Joi.string().required().description('mailgun api Key'),
+    MAILGUN_DOMAIN: Joi.string().required().description('Mailgun domain'),
+    MAILGUN_FROM_EMAIL: Joi.string().required().description('mailgun from email'),
+    MAILGUN_FROM_NAME: Joi.string().required().description('mailgun from name'),
   })
   .unknown();
 
@@ -82,8 +84,10 @@ module.exports = {
     apiKey: envVars.CLOUDINARY_API_KEY,
     apiSecret: envVars.CLOUDINARY_API_SECRET,
   },
-  // logtail: {
-  //   apiKey: envVars.LOGTAIL_API_KEY,
-  //   endpoint: `https://${envVars.LOGTAIL_INGESTING_HOST}`,
-  // },
+  mailgun: {
+    apiKey: envVars.MAILGUN_API_KEY,
+    domain: envVars.MAILGUN_DOMAIN,
+    fromEmail: envVars.MAILGUN_FROM_EMAIL,
+    fromName: envVars.MAILGUN_FROM_NAME,
+  },
 };

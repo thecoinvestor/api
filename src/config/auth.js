@@ -1,10 +1,10 @@
 const { betterAuth } = require('better-auth');
 const { MongoClient } = require('mongodb');
 const { mongodbAdapter } = require('better-auth/adapters/mongodb');
-const { phoneNumber, createAuthMiddleware } = require('better-auth/plugins');
+const { createAuthMiddleware, emailOTP } = require('better-auth/plugins');
 const config = require('./config.js');
 const { nextCookies } = require('better-auth/next-js');
-const { sendOtpSms } = require('../services/sms.service.js');
+const { sendOtpEmail } = require('../services/otp.service.js');
 
 const client = new MongoClient(config.mongoose.url);
 
@@ -22,6 +22,7 @@ const db = client.db();
 
 const auth = betterAuth({
   trustedOrigins: Array.isArray(config.cors.allowedOrigins) ? config.cors.allowedOrigins : [config.cors.allowedOrigins],
+
   database: mongodbAdapter(db),
 
   user: {
@@ -51,8 +52,51 @@ const auth = betterAuth({
       },
     },
   },
+
+  emailAndPassword: {
+    enabled: true,
+    requireEmailVerification: true,
+  },
+
+  plugins: [
+    emailOTP({
+      overrideDefaultEmailVerification: true,
+      async sendVerificationOTP({ email, otp, type }) {
+        try {
+          let emailType;
+          switch (type) {
+            case 'email-verification':
+              emailType = 'email-verification';
+              break;
+            case 'sign-in':
+              emailType = 'sign-in';
+              break;
+            case 'forget-password':
+              emailType = 'password-reset';
+              break;
+            default:
+              emailType = 'email-verification';
+          }
+
+          await sendOtpEmail(email, otp, emailType);
+          // console.log(`${type} OTP sent successfully to ${email}`);
+        } catch {
+          // console.error(`Failed to send ${type} OTP:`, error);
+          throw new Error(`Failed to send ${type} OTP`);
+        }
+      },
+      otpLength: 6,
+      expiresIn: 300,
+      allowedAttempts: 3,
+      disableSignUp: true,
+    }),
+
+    nextCookies(),
+  ],
+
   hooks: {
     after: createAuthMiddleware(async (ctx) => {
+      // Create profile after sign-up
       if (ctx.path.startsWith('/sign-up') && ctx.context.newSession) {
         const userId = ctx.context.newSession.user?.id;
 
@@ -61,37 +105,30 @@ const auth = betterAuth({
           await profileService.createProfile(userId);
         }
       }
-    }),
-  },
-  emailAndPassword: {
-    enabled: true,
-    requireEmailVerification: false,
-  },
 
-  plugins: [
-    phoneNumber({
-      sendOTP: async ({ phoneNumber, code }) => {
-        await sendOtpSms(phoneNumber, code, 'phone-verification');
-      },
-      sendPasswordResetOTP: async ({ phoneNumber, code }) => {
-        await sendOtpSms(phoneNumber, code, 'password-reset');
-      },
-      otpLength: 6,
-      expiresIn: 300,
+      // Log sign-in events
+      if (ctx.path.includes('sign-in') && ctx.context.newSession) {
+        // const userId = ctx.context.newSession.user?.id;
+        // console.log(`User ${userId} signed in successfully`);
+      }
     }),
-    nextCookies(),
-  ],
+  },
 
   advanced: {
     ipAddress: {
       ipAddressHeaders: ['x-forwarded-for', 'x-real-ip', 'cf-connecting-ip'],
     },
     defaultCookieAttributes: {
-      sameSite: 'none',
-      secure: true,
+      sameSite: config.env === 'production' ? 'none' : 'lax',
+      secure: config.env === 'production',
       httpOnly: true,
-      domain: config.env === 'production' ? '' : 'localhost',
+      domain: config.env === 'production' ? '.yourdomain.com' : undefined,
     },
+  },
+
+  session: {
+    expiresIn: 60 * 60 * 24 * 7, // 7 days
+    updateAge: 60 * 60 * 24, // 1 day
   },
 });
 
