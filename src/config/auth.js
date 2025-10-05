@@ -122,7 +122,7 @@ const auth = betterAuth({
       sameSite: config.env === 'production' ? 'none' : 'lax',
       secure: config.env === 'production',
       httpOnly: true,
-      domain: config.env === 'production' ? '.yourdomain.com' : undefined,
+      domain: config.env === 'production' ? config.frontend_url : undefined,
     },
   },
 
