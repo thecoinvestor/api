@@ -10,6 +10,8 @@ const envVarsSchema = Joi.object()
     MONGODB_URL: Joi.string().description('Mongo DB url'),
     FRONTEND_URL: Joi.string().required().description('Frontend url'),
     CORS_ALLOWED: Joi.string().required().description('CORS allowed origins'),
+    BACKEND_URL: Joi.string().required().description('Backend url'),
+    BETTER_AUTH_SECRET: Joi.string().required().description('Better auth secret'),
 
     ADMIN_EMAIL: Joi.string().required().description('Admin email'),
 
@@ -46,6 +48,9 @@ module.exports = {
   env: envVars.NODE_ENV,
   port: envVars.PORT,
   frontend_url: envVars.FRONTEND_URL,
+  better_auth_secret: envVars.BETTER_AUTH_SECRET,
+
+  backend_url: envVars.BACKEND_URL,
   admin: {
     email: envVars.ADMIN_EMAIL,
   },

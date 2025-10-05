@@ -21,6 +21,8 @@ client
 const db = client.db();
 
 const auth = betterAuth({
+  baseURL: config.backend_url,
+  secret: config.better_auth_secret,
   trustedOrigins: Array.isArray(config.cors.allowedOrigins) ? config.cors.allowedOrigins : [config.cors.allowedOrigins],
 
   database: mongodbAdapter(db),
@@ -115,6 +117,7 @@ const auth = betterAuth({
   },
 
   advanced: {
+    useSecureCookies: config.env === 'production',
     ipAddress: {
       ipAddressHeaders: ['x-forwarded-for', 'x-real-ip', 'cf-connecting-ip'],
     },
@@ -122,13 +125,17 @@ const auth = betterAuth({
       sameSite: config.env === 'production' ? 'none' : 'lax',
       secure: config.env === 'production',
       httpOnly: true,
-      domain: config.env === 'production' ? config.frontend_url : undefined,
+      path: '/',
     },
   },
 
   session: {
-    expiresIn: 60 * 60 * 24 * 7, // 7 days
-    updateAge: 60 * 60 * 24, // 1 day
+    expiresIn: 60 * 60 * 24 * 7,
+    updateAge: 60 * 60 * 24,
+    cookieCache: {
+      enabled: true,
+      maxAge: 300,
+    },
   },
 });
 
