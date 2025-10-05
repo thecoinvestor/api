@@ -3,7 +3,6 @@ const { MongoClient } = require('mongodb');
 const { mongodbAdapter } = require('better-auth/adapters/mongodb');
 const { createAuthMiddleware, emailOTP } = require('better-auth/plugins');
 const config = require('./config.js');
-const { nextCookies } = require('better-auth/next-js');
 const { sendOtpEmail } = require('../services/otp.service.js');
 
 const client = new MongoClient(config.mongoose.url);
@@ -23,9 +22,7 @@ const db = client.db();
 const auth = betterAuth({
   baseURL: config.backend_url,
   secret: config.better_auth_secret,
-  trustedOrigins: Array.isArray(config.cors.allowedOrigins)
-    ? config.cors.allowedOrigins
-    : [config.cors.allowedOrigins],
+  trustedOrigins: Array.isArray(config.cors.allowedOrigins) ? config.cors.allowedOrigins : [config.cors.allowedOrigins],
 
   database: mongodbAdapter(db),
 
@@ -92,8 +89,6 @@ const auth = betterAuth({
       allowedAttempts: 3,
       disableSignUp: true,
     }),
-
-    nextCookies(),
   ],
 
   hooks: {
