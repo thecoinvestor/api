@@ -23,7 +23,9 @@ const db = client.db();
 const auth = betterAuth({
   baseURL: config.backend_url,
   secret: config.better_auth_secret,
-  trustedOrigins: Array.isArray(config.cors.allowedOrigins) ? config.cors.allowedOrigins : [config.cors.allowedOrigins],
+  trustedOrigins: Array.isArray(config.cors.allowedOrigins)
+    ? config.cors.allowedOrigins
+    : [config.cors.allowedOrigins],
 
   database: mongodbAdapter(db),
 
@@ -81,9 +83,7 @@ const auth = betterAuth({
           }
 
           await sendOtpEmail(email, otp, emailType);
-          // console.log(`${type} OTP sent successfully to ${email}`);
         } catch {
-          // console.error(`Failed to send ${type} OTP:`, error);
           throw new Error(`Failed to send ${type} OTP`);
         }
       },
@@ -98,29 +98,30 @@ const auth = betterAuth({
 
   hooks: {
     after: createAuthMiddleware(async (ctx) => {
-      // Create profile after sign-up
       if (ctx.path.startsWith('/sign-up') && ctx.context.newSession) {
         const userId = ctx.context.newSession.user?.id;
-
         if (userId) {
           const { profileService } = require('../services/index.js');
           await profileService.createProfile(userId);
         }
-      }
-
-      // Log sign-in events
-      if (ctx.path.includes('sign-in') && ctx.context.newSession) {
-        // const userId = ctx.context.newSession.user?.id;
-        // console.log(`User ${userId} signed in successfully`);
       }
     }),
   },
 
   advanced: {
     useSecureCookies: config.env === 'production',
+
+    ...(config.env === 'production' && {
+      crossSubDomainCookies: {
+        enabled: true,
+        domain: '.thecoinvestor.co',
+      },
+    }),
+
     ipAddress: {
       ipAddressHeaders: ['x-forwarded-for', 'x-real-ip', 'cf-connecting-ip'],
     },
+
     defaultCookieAttributes: {
       sameSite: config.env === 'production' ? 'none' : 'lax',
       secure: config.env === 'production',

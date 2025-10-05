@@ -51,10 +51,6 @@ const corsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
 };
 
-if (process.env.NODE_ENV === 'production') {
-  corsOptions.origin = [process.env.FRONTEND_URL];
-}
-
 app.use(cors(corsOptions));
 
 // Handle OPTIONS preflight requests
