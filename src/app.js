@@ -9,10 +9,8 @@ const config = require('./config/config.js');
 const routes = require('./routes/index.js');
 const { errorConverter, errorHandler } = require('./middlewares/error.middleware.js');
 const ApiError = require('./utils/ApiError.js');
-const { toNodeHandler } = require('better-auth/node');
-// const auth = require('./auth/aut');
 const mongoose = require('mongoose');
-const auth = require('./config/auth.js');
+const { getAuth } = require('./config/auth.js');
 
 // Add MongoDB connection for Vercel
 if (process.env.NODE_ENV === 'production') {
@@ -56,8 +54,17 @@ app.use(cors(corsOptions));
 // Handle OPTIONS preflight requests
 app.options('*', cors());
 
-// better-auth routes
-app.all('/api/auth/*', toNodeHandler(auth));
+// better-auth routes - use dynamic import for ESM module
+app.all('/api/auth/*', async (req, res, next) => {
+  try {
+    const { toNodeHandler } = await import('better-auth/node');
+    const auth = await getAuth();
+    return toNodeHandler(auth)(req, res, next);
+  } catch (error) {
+    console.error('Auth handler error:', error);
+    res.status(500).json({ error: 'Authentication service error' });
+  }
+});
 
 // Add this after your CORS setup and before app.use('/v1', routes)
 app.get('/', (req, res) => {
