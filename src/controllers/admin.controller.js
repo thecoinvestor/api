@@ -181,6 +181,47 @@ const rejectWithdrawRequest = catchAsync(async (req, res) => {
   });
 });
 
+// Manual Deposit/Withdrawal
+const manualDeposit = catchAsync(async (req, res) => {
+  const { userId } = req.params;
+  const { amount, note } = req.body;
+
+  if (!amount || amount <= 0) {
+    return res.status(400).json({
+      success: false,
+      message: 'Amount must be a positive number',
+    });
+  }
+
+  const result = await adminService.manualDeposit(userId, amount, note);
+
+  res.status(200).json({
+    success: true,
+    message: `Successfully deposited ${amount} coins to user account`,
+    data: result,
+  });
+});
+
+const manualWithdraw = catchAsync(async (req, res) => {
+  const { userId } = req.params;
+  const { amount, note } = req.body;
+
+  if (!amount || amount <= 0) {
+    return res.status(400).json({
+      success: false,
+      message: 'Amount must be a positive number',
+    });
+  }
+
+  const result = await adminService.manualWithdraw(userId, amount, note);
+
+  res.status(200).json({
+    success: true,
+    message: `Successfully withdrew ${amount} coins from user account`,
+    data: result,
+  });
+});
+
 // Payment Methods Management
 const getPaymentMethods = catchAsync(async (req, res) => {
   try {
@@ -272,6 +313,8 @@ module.exports = {
   getWithdrawRequests,
   approveWithdrawRequest,
   rejectWithdrawRequest,
+  manualDeposit,
+  manualWithdraw,
   getPaymentMethods,
   updatePaymentMethod,
   createPaymentMethod,

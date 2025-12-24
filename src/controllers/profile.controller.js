@@ -189,6 +189,21 @@ const getDashboardData = catchAsync(async (req, res) => {
       }
     }
 
+    // Get recent transactions (last 20, sorted by date)
+    const recentTransactions = (profile.requests || [])
+      .map((req) => ({
+        id: req._id?.toString(),
+        type: req.type,
+        amount: req.amount,
+        status: req.status,
+        date: req.submissionDate,
+        approvalDate: req.approvalDate,
+        paymentMode: req.paymentMode,
+        note: req.note,
+      }))
+      .sort((a, b) => new Date(b.date) - new Date(a.date))
+      .slice(0, 20);
+
     const dashboardData = {
       userProfile: {
         name: user.name || 'User',
@@ -201,6 +216,7 @@ const getDashboardData = catchAsync(async (req, res) => {
         coinvestorId: profile.coinvestorId,
       },
       investments: investments,
+      recentTransactions: recentTransactions,
       stats: {
         activeInvestments: investments.filter((inv) => inv.status === 'pending').length,
         nextMaturityDays: nextMaturityDays,

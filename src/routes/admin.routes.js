@@ -45,6 +45,10 @@ router.get('/requests/withdraw', adminController.getWithdrawRequests);
 router.patch('/requests/withdraw/:requestId/approve', adminController.approveWithdrawRequest);
 router.patch('/requests/withdraw/:requestId/reject', adminController.rejectWithdrawRequest);
 
+// Manual deposit/withdrawal by admin
+router.post('/users/:userId/deposit', adminController.manualDeposit);
+router.post('/users/:userId/withdraw', adminController.manualWithdraw);
+
 // Payment methods management
 router.get('/payment-methods', adminController.getPaymentMethods);
 router.patch(

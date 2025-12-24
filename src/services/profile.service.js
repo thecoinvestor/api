@@ -58,6 +58,18 @@ const getProfileByCoinvestorId = async (coinvestorId) => {
   }
 };
 
+// Check if proof of payment has already been used
+const checkDuplicateProof = async (proofUrl) => {
+  if (!proofUrl) return false;
+
+  // Find any profile that has this proof URL
+  const existingRequest = await Profile.findOne({
+    'requests.proofOfPayment': proofUrl,
+  });
+
+  return !!existingRequest;
+};
+
 // Add request (withdrawal or purchase)
 const addRequest = async (userId, type, amount, paymentMode, proofOfPayment = null) => {
   try {
@@ -66,6 +78,14 @@ const addRequest = async (userId, type, amount, paymentMode, proofOfPayment = nu
     // Validation for withdrawal requests
     if (type === 'withdrawal' && profile.balance < amount) {
       throw new Error('Insufficient balance for withdrawal');
+    }
+
+    // Check for duplicate proof of payment (same slip used before)
+    if (proofOfPayment && type === 'purchase') {
+      const isDuplicate = await checkDuplicateProof(proofOfPayment);
+      if (isDuplicate) {
+        throw new Error('This payment proof has already been used. Please upload a new slip.');
+      }
     }
 
     const request = {
@@ -247,7 +267,11 @@ const getInvestmentData = async (userId) => {
   try {
     const profile = await getProfile(userId);
 
-    const approvedPurchases = profile.requests.filter((req) => req.type === 'purchase' && req.status === 'approved');
+    // Filter approved purchases but exclude manual cash transactions (done by admin)
+    // Only include actual investments (not cash deposits)
+    const approvedPurchases = profile.requests.filter(
+      (req) => req.type === 'purchase' && req.status === 'approved' && req.paymentMode !== 'cash',
+    );
 
     const investments = approvedPurchases.map((purchase, index) => {
       const startDate = new Date(purchase.approvalDate);

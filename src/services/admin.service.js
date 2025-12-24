@@ -52,6 +52,21 @@ const getAllUsers = async (filters = {}) => {
       const profile = profileMap[user._id.toString()] || {};
       const kycStatus = getKycStatusFromProfile(profile);
 
+      // Get recent transactions (last 10, sorted by date)
+      const recentTransactions = (profile.requests || [])
+        .map((req) => ({
+          id: req._id?.toString(),
+          type: req.type,
+          amount: req.amount,
+          status: req.status,
+          date: req.submissionDate,
+          approvalDate: req.approvalDate,
+          paymentMode: req.paymentMode,
+          note: req.note,
+        }))
+        .sort((a, b) => new Date(b.date) - new Date(a.date))
+        .slice(0, 10);
+
       return {
         id: user._id.toString(),
         name: user.name || 'N/A',
@@ -64,6 +79,7 @@ const getAllUsers = async (filters = {}) => {
         totalCoins: profile.balance || 0,
         totalValue: profile.balance || 0,
         status: user.status || 'active',
+        recentTransactions,
       };
     });
 
@@ -109,10 +125,7 @@ const getPendingDocuments = async (filters = {}) => {
     const { search, page = 1, limit = 10 } = filters;
 
     // First, get users with verified email
-    const verifiedEmailUsers = await auth.db
-      .collection('user')
-      .find({ emailVerified: true })
-      .toArray();
+    const verifiedEmailUsers = await auth.db.collection('user').find({ emailVerified: true }).toArray();
 
     const verifiedEmailUserIds = verifiedEmailUsers.map((user) => user._id.toString());
 
@@ -220,20 +233,14 @@ const getVerifiedDocuments = async (filters = {}) => {
     const { search, page = 1, limit = 10 } = filters;
 
     // First, get users with verified email
-    const verifiedEmailUsers = await auth.db
-      .collection('user')
-      .find({ emailVerified: true })
-      .toArray();
+    const verifiedEmailUsers = await auth.db.collection('user').find({ emailVerified: true }).toArray();
 
     const verifiedEmailUserIds = verifiedEmailUsers.map((user) => user._id.toString());
 
     // Find profiles with verified documents only for email-verified users
     let profileQuery = {
       userId: { $in: verifiedEmailUserIds },
-      $and: [
-        { 'identityProof.status': 'verified' },
-        { 'photo.status': 'verified' }
-      ],
+      $and: [{ 'identityProof.status': 'verified' }, { 'photo.status': 'verified' }],
     };
 
     const profiles = await Profile.find(profileQuery)
@@ -250,45 +257,49 @@ const getVerifiedDocuments = async (filters = {}) => {
     });
 
     // Combine data with request screenshots
-    let combinedData = await Promise.all(profiles.map(async (profile) => {
-      const user = userMap[profile.userId] || {};
+    let combinedData = await Promise.all(
+      profiles.map(async (profile) => {
+        const user = userMap[profile.userId] || {};
 
-      // Get withdrawal and deposit request screenshots
-      const withdrawalScreenshots = profile.requests
-        ?.filter(req => req.type === 'withdrawal' && req.proofOfPayment)
-        .map(req => ({
-          id: req._id?.toString(),
-          url: req.proofOfPayment,
-          amount: req.amount,
-          status: req.status,
-          date: req.submissionDate
-        })) || [];
+        // Get withdrawal and deposit request screenshots
+        const withdrawalScreenshots =
+          profile.requests
+            ?.filter((req) => req.type === 'withdrawal' && req.proofOfPayment)
+            .map((req) => ({
+              id: req._id?.toString(),
+              url: req.proofOfPayment,
+              amount: req.amount,
+              status: req.status,
+              date: req.submissionDate,
+            })) || [];
 
-      const depositScreenshots = profile.requests
-        ?.filter(req => req.type === 'purchase' && req.proofOfPayment)
-        .map(req => ({
-          id: req._id?.toString(),
-          url: req.proofOfPayment,
-          amount: req.amount,
-          status: req.status,
-          date: req.submissionDate
-        })) || [];
+        const depositScreenshots =
+          profile.requests
+            ?.filter((req) => req.type === 'purchase' && req.proofOfPayment)
+            .map((req) => ({
+              id: req._id?.toString(),
+              url: req.proofOfPayment,
+              amount: req.amount,
+              status: req.status,
+              date: req.submissionDate,
+            })) || [];
 
-      return {
-        id: profile.userId,
-        name: user.name || 'N/A',
-        coinvestorId: profile.coinvestorId || 'Not assigned',
-        email: user.email || 'N/A',
-        phone: user.phoneNumber || 'N/A',
-        documentsStatus: 'verified',
-        identityProof: profile.identityProof || null,
-        photo: profile.photo || null,
-        registrationDate: user.createdAt || new Date(),
-        withdrawalScreenshots,
-        depositScreenshots,
-        totalCoins: profile.balance || 0,
-      };
-    }));
+        return {
+          id: profile.userId,
+          name: user.name || 'N/A',
+          coinvestorId: profile.coinvestorId || 'Not assigned',
+          email: user.email || 'N/A',
+          phone: user.phoneNumber || 'N/A',
+          documentsStatus: 'verified',
+          identityProof: profile.identityProof || null,
+          photo: profile.photo || null,
+          registrationDate: user.createdAt || new Date(),
+          withdrawalScreenshots,
+          depositScreenshots,
+          totalCoins: profile.balance || 0,
+        };
+      }),
+    );
 
     if (search) {
       combinedData = combinedData.filter(
@@ -341,10 +352,7 @@ const getRequestsWithUserInfo = async (requestType, filters = {}) => {
     const results = await Profile.aggregate(pipeline);
 
     // Get all users and create a map (avoid ObjectId conversion issues)
-    const allUsers = await auth.db
-      .collection('user')
-      .find({})
-      .toArray();
+    const allUsers = await auth.db.collection('user').find({}).toArray();
 
     const userMap = {};
     allUsers.forEach((user) => {
@@ -548,6 +556,85 @@ const rejectWithdrawRequest = async (requestId, reason) => {
   }
 };
 
+// Manual Deposit/Withdrawal by Admin
+const manualDeposit = async (userId, amount, note) => {
+  try {
+    const profile = await Profile.findOne({ userId });
+    if (!profile) {
+      throw new Error('User profile not found');
+    }
+
+    // Add to balance
+    await Profile.updateOne(
+      { userId },
+      {
+        $inc: { balance: amount },
+        $push: {
+          requests: {
+            type: 'purchase',
+            status: 'approved',
+            submissionDate: new Date(),
+            approvalDate: new Date(),
+            amount: amount,
+            paymentMode: 'cash',
+            note: note || 'Manual deposit by admin',
+          },
+        },
+      },
+    );
+
+    return {
+      userId,
+      amount,
+      newBalance: profile.balance + amount,
+      type: 'deposit',
+    };
+  } catch (error) {
+    throw new Error(`Failed to add manual deposit: ${error.message}`);
+  }
+};
+
+const manualWithdraw = async (userId, amount, note) => {
+  try {
+    const profile = await Profile.findOne({ userId });
+    if (!profile) {
+      throw new Error('User profile not found');
+    }
+
+    if (profile.balance < amount) {
+      throw new Error('Insufficient balance for withdrawal');
+    }
+
+    // Deduct from balance
+    await Profile.updateOne(
+      { userId },
+      {
+        $inc: { balance: -amount },
+        $push: {
+          requests: {
+            type: 'withdrawal',
+            status: 'approved',
+            submissionDate: new Date(),
+            approvalDate: new Date(),
+            amount: amount,
+            paymentMode: 'cash',
+            note: note || 'Manual withdrawal by admin',
+          },
+        },
+      },
+    );
+
+    return {
+      userId,
+      amount,
+      newBalance: profile.balance - amount,
+      type: 'withdrawal',
+    };
+  } catch (error) {
+    throw new Error(`Failed to process manual withdrawal: ${error.message}`);
+  }
+};
+
 // Payment Methods Management
 const getPaymentMethods = async () => {
   try {
@@ -620,6 +707,8 @@ module.exports = {
   getWithdrawRequests,
   approveWithdrawRequest,
   rejectWithdrawRequest,
+  manualDeposit,
+  manualWithdraw,
   getPaymentMethods,
   updatePaymentMethod,
   createPaymentMethod,
