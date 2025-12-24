@@ -17,162 +17,145 @@ client
 const db = client.db();
 
 let authInstance = null;
+let authPromise = null;
 
 const initAuth = async () => {
   if (authInstance) {
     return authInstance;
   }
 
-  const { betterAuth } = await import('better-auth');
-  const { mongodbAdapter } = await import('better-auth/adapters/mongodb');
-  const { createAuthMiddleware, emailOTP } = await import('better-auth/plugins');
+  if (authPromise) {
+    return authPromise;
+  }
 
-  authInstance = betterAuth({
-    baseURL: config.backend_url,
-    secret: config.better_auth_secret,
-    trustedOrigins: Array.isArray(config.cors.allowedOrigins) ? config.cors.allowedOrigins : [config.cors.allowedOrigins],
+  authPromise = (async () => {
+    const { betterAuth } = await import('better-auth');
+    const { mongodbAdapter } = await import('better-auth/adapters/mongodb');
+    const { createAuthMiddleware, emailOTP } = await import('better-auth/plugins');
 
-    database: mongodbAdapter(db),
+    authInstance = betterAuth({
+      baseURL: config.backend_url,
+      secret: config.better_auth_secret,
+      trustedOrigins: Array.isArray(config.cors.allowedOrigins) ? config.cors.allowedOrigins : [config.cors.allowedOrigins],
 
-    user: {
-      additionalFields: {
-        phoneNumber: {
-          type: 'string',
-          required: false,
-        },
-        phoneNumberVerified: {
-          type: 'boolean',
-          required: false,
-          defaultValue: false,
-        },
-        email: {
-          type: 'string',
-          required: false,
-        },
-        redirectUrl: {
-          type: 'string',
-          required: false,
-          defaultValue: 'upload',
-        },
-        isAdmin: {
-          type: 'boolean',
-          required: false,
-          defaultValue: false,
+      database: mongodbAdapter(db),
+
+      user: {
+        additionalFields: {
+          phoneNumber: {
+            type: 'string',
+            required: false,
+          },
+          phoneNumberVerified: {
+            type: 'boolean',
+            required: false,
+            defaultValue: false,
+          },
+          email: {
+            type: 'string',
+            required: false,
+          },
+          redirectUrl: {
+            type: 'string',
+            required: false,
+            defaultValue: 'upload',
+          },
+          isAdmin: {
+            type: 'boolean',
+            required: false,
+            defaultValue: false,
+          },
         },
       },
-    },
 
-    emailAndPassword: {
-      enabled: true,
-      requireEmailVerification: true,
-    },
+      emailAndPassword: {
+        enabled: true,
+        requireEmailVerification: true,
+      },
 
-    plugins: [
-      emailOTP({
-        overrideDefaultEmailVerification: true,
-        async sendVerificationOTP({ email, otp, type }) {
-          try {
-            let emailType;
-            switch (type) {
-              case 'email-verification':
-                emailType = 'email-verification';
-                break;
-              case 'sign-in':
-                emailType = 'sign-in';
-                break;
-              case 'forget-password':
-                emailType = 'password-reset';
-                break;
-              default:
-                emailType = 'email-verification';
+      plugins: [
+        emailOTP({
+          overrideDefaultEmailVerification: true,
+          async sendVerificationOTP({ email, otp, type }) {
+            try {
+              let emailType;
+              switch (type) {
+                case 'email-verification':
+                  emailType = 'email-verification';
+                  break;
+                case 'sign-in':
+                  emailType = 'sign-in';
+                  break;
+                case 'forget-password':
+                  emailType = 'password-reset';
+                  break;
+                default:
+                  emailType = 'email-verification';
+              }
+
+              await sendOtpEmail(email, otp, emailType);
+            } catch {
+              throw new Error(`Failed to send ${type} OTP`);
             }
+          },
+          otpLength: 6,
+          expiresIn: 300,
+          allowedAttempts: 3,
+          disableSignUp: true,
+        }),
+      ],
 
-            await sendOtpEmail(email, otp, emailType);
-          } catch {
-            throw new Error(`Failed to send ${type} OTP`);
+      hooks: {
+        after: createAuthMiddleware(async (ctx) => {
+          if (ctx.path.startsWith('/sign-up') && ctx.context.newSession) {
+            const userId = ctx.context.newSession.user?.id;
+            if (userId) {
+              const { profileService } = require('../services/index.js');
+              await profileService.createProfile(userId);
+            }
           }
-        },
-        otpLength: 6,
-        expiresIn: 300,
-        allowedAttempts: 3,
-        disableSignUp: true,
-      }),
-    ],
-
-    hooks: {
-      after: createAuthMiddleware(async (ctx) => {
-        if (ctx.path.startsWith('/sign-up') && ctx.context.newSession) {
-          const userId = ctx.context.newSession.user?.id;
-          if (userId) {
-            const { profileService } = require('../services/index.js');
-            await profileService.createProfile(userId);
-          }
-        }
-      }),
-    },
-
-    advanced: {
-      useSecureCookies: config.env === 'production',
-
-      ...(config.env === 'production' && {
-        crossSubDomainCookies: {
-          enabled: true,
-          domain: '.thecoinvestor.co',
-        },
-      }),
-
-      ipAddress: {
-        ipAddressHeaders: ['x-forwarded-for', 'x-real-ip', 'cf-connecting-ip'],
+        }),
       },
 
-      defaultCookieAttributes: {
-        sameSite: config.env === 'production' ? 'none' : 'lax',
-        secure: config.env === 'production',
-        httpOnly: true,
-        path: '/',
+      advanced: {
+        useSecureCookies: config.env === 'production',
+
+        ...(config.env === 'production' && {
+          crossSubDomainCookies: {
+            enabled: true,
+            domain: '.thecoinvestor.co',
+          },
+        }),
+
+        ipAddress: {
+          ipAddressHeaders: ['x-forwarded-for', 'x-real-ip', 'cf-connecting-ip'],
+        },
+
+        defaultCookieAttributes: {
+          sameSite: config.env === 'production' ? 'none' : 'lax',
+          secure: config.env === 'production',
+          httpOnly: true,
+          path: '/',
+        },
       },
-    },
 
-    session: {
-      expiresIn: 60 * 60 * 24 * 7,
-      updateAge: 60 * 60 * 24,
-    },
-  });
+      session: {
+        expiresIn: 60 * 60 * 24 * 7,
+        updateAge: 60 * 60 * 24,
+      },
+    });
 
-  return authInstance;
+    return authInstance;
+  })();
+
+  return authPromise;
 };
 
-// Initialize auth immediately
-const authPromise = initAuth();
+// Start initialization immediately
+initAuth();
 
-// Create a proxy that waits for auth to be initialized
-const auth = new Proxy(
-  {},
-  {
-    get(target, prop) {
-      if (prop === 'then' || prop === 'catch' || prop === 'finally') {
-        return undefined;
-      }
-      return new Proxy(
-        {},
-        {
-          get(_, method) {
-            return async (...args) => {
-              const authInst = await authPromise;
-              return authInst[prop][method](...args);
-            };
-          },
-          apply: async (_, thisArg, args) => {
-            const authInst = await authPromise;
-            return authInst[prop](...args);
-          },
-        },
-      );
-    },
-  },
-);
-
-// Export getAuth function for direct access
-module.exports = auth;
-module.exports.db = db;
-module.exports.getAuth = () => authPromise;
+// Export functions
+module.exports = {
+  getAuth: initAuth,
+  db,
+};

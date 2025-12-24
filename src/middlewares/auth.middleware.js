@@ -1,4 +1,4 @@
-const auth = require('../config/auth');
+const { getAuth } = require('../config/auth');
 
 let fromNodeHeaders;
 
@@ -14,6 +14,7 @@ const initBetterAuth = async () => {
 const authMiddlewareHandler = async function (req, res, next) {
   try {
     const fromNodeHeaders = await initBetterAuth();
+    const auth = await getAuth();
     const session = await auth.api.getSession({
       headers: fromNodeHeaders(req.headers),
     });
@@ -39,6 +40,7 @@ const authMiddlewareHandler = async function (req, res, next) {
 const adminMiddleware = async function (req, res, next) {
   try {
     const fromNodeHeaders = await initBetterAuth();
+    const auth = await getAuth();
     const session = await auth.api.getSession({
       headers: fromNodeHeaders(req.headers),
     });
