@@ -80,6 +80,21 @@ const rejectDocuments = catchAsync(async (req, res) => {
   });
 });
 
+const getVerifiedDocuments = catchAsync(async (req, res) => {
+  const { search, page = 1, limit = 10 } = req.query;
+
+  const verifiedDocs = await adminService.getVerifiedDocuments({
+    search,
+    page: parseInt(page),
+    limit: parseInt(limit),
+  });
+
+  res.status(200).json({
+    success: true,
+    data: verifiedDocs,
+  });
+});
+
 // Buy Requests Management
 const getBuyRequests = catchAsync(async (req, res) => {
   const { search, page = 1, limit = 10, status = 'pending', sort = 'newest' } = req.query;
@@ -248,6 +263,7 @@ module.exports = {
   getAllUsers,
   updateUserStatus,
   getPendingDocuments,
+  getVerifiedDocuments,
   verifyDocuments,
   rejectDocuments,
   getBuyRequests,

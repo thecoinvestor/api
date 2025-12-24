@@ -1,14 +1,22 @@
 const { Profile, Payment } = require('../models');
-const { ObjectId } = require('mongodb');
+const mongoose = require('mongoose');
 const auth = require('../config/auth.js');
+
+// Use mongoose ObjectId for Mongoose operations
+const ObjectId = mongoose.Types.ObjectId;
+
+// Helper to create ObjectId for auth.db (native MongoDB) queries
+const toMongoObjectId = (id) => {
+  return new mongoose.mongo.ObjectId(id);
+};
 
 // Users Management
 const getAllUsers = async (filters = {}) => {
   try {
     const { search, page = 1, limit = 10, status } = filters;
 
-    // Build user query
-    let userQuery = {};
+    // Build user query - only show users with verified email
+    let userQuery = { emailVerified: true };
     if (status) {
       userQuery.status = status;
     }
@@ -78,7 +86,7 @@ const getAllUsers = async (filters = {}) => {
 const updateUserStatus = async (userId, status) => {
   try {
     const result = await auth.db.collection('user').updateOne(
-      { _id: new ObjectId(userId) },
+      { _id: toMongoObjectId(userId) },
       {
         $set: { status },
         $currentDate: { updatedAt: true },
@@ -100,8 +108,17 @@ const getPendingDocuments = async (filters = {}) => {
   try {
     const { search, page = 1, limit = 10 } = filters;
 
-    // Find profiles with pending documents
+    // First, get users with verified email
+    const verifiedEmailUsers = await auth.db
+      .collection('user')
+      .find({ emailVerified: true })
+      .toArray();
+
+    const verifiedEmailUserIds = verifiedEmailUsers.map((user) => user._id.toString());
+
+    // Find profiles with pending documents only for email-verified users
     let profileQuery = {
+      userId: { $in: verifiedEmailUserIds },
       $or: [{ 'identityProof.status': 'pending' }, { 'photo.status': 'pending' }],
     };
 
@@ -110,15 +127,9 @@ const getPendingDocuments = async (filters = {}) => {
       .limit(limit)
       .sort({ 'identityProof.updatedAt': -1, 'photo.updatedAt': -1 });
 
-    // Get user details for these profiles
-    const userIds = profiles.map((profile) => new ObjectId(profile.userId));
-    const users = await auth.db
-      .collection('user')
-      .find({ _id: { $in: userIds } })
-      .toArray();
-
+    // Create user map for quick lookup
     const userMap = {};
-    users.forEach((user) => {
+    verifiedEmailUsers.forEach((user) => {
       userMap[user._id.toString()] = user;
     });
 
@@ -204,6 +215,105 @@ const rejectUserDocuments = async (userId, reason) => {
   }
 };
 
+const getVerifiedDocuments = async (filters = {}) => {
+  try {
+    const { search, page = 1, limit = 10 } = filters;
+
+    // First, get users with verified email
+    const verifiedEmailUsers = await auth.db
+      .collection('user')
+      .find({ emailVerified: true })
+      .toArray();
+
+    const verifiedEmailUserIds = verifiedEmailUsers.map((user) => user._id.toString());
+
+    // Find profiles with verified documents only for email-verified users
+    let profileQuery = {
+      userId: { $in: verifiedEmailUserIds },
+      $and: [
+        { 'identityProof.status': 'verified' },
+        { 'photo.status': 'verified' }
+      ],
+    };
+
+    const profiles = await Profile.find(profileQuery)
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .sort({ updatedAt: -1 });
+
+    const total = await Profile.countDocuments(profileQuery);
+
+    // Create user map for quick lookup
+    const userMap = {};
+    verifiedEmailUsers.forEach((user) => {
+      userMap[user._id.toString()] = user;
+    });
+
+    // Combine data with request screenshots
+    let combinedData = await Promise.all(profiles.map(async (profile) => {
+      const user = userMap[profile.userId] || {};
+
+      // Get withdrawal and deposit request screenshots
+      const withdrawalScreenshots = profile.requests
+        ?.filter(req => req.type === 'withdrawal' && req.proofOfPayment)
+        .map(req => ({
+          id: req._id?.toString(),
+          url: req.proofOfPayment,
+          amount: req.amount,
+          status: req.status,
+          date: req.submissionDate
+        })) || [];
+
+      const depositScreenshots = profile.requests
+        ?.filter(req => req.type === 'purchase' && req.proofOfPayment)
+        .map(req => ({
+          id: req._id?.toString(),
+          url: req.proofOfPayment,
+          amount: req.amount,
+          status: req.status,
+          date: req.submissionDate
+        })) || [];
+
+      return {
+        id: profile.userId,
+        name: user.name || 'N/A',
+        coinvestorId: profile.coinvestorId || 'Not assigned',
+        email: user.email || 'N/A',
+        phone: user.phoneNumber || 'N/A',
+        documentsStatus: 'verified',
+        identityProof: profile.identityProof || null,
+        photo: profile.photo || null,
+        registrationDate: user.createdAt || new Date(),
+        withdrawalScreenshots,
+        depositScreenshots,
+        totalCoins: profile.balance || 0,
+      };
+    }));
+
+    if (search) {
+      combinedData = combinedData.filter(
+        (item) =>
+          item.name.toLowerCase().includes(search.toLowerCase()) ||
+          item.coinvestorId.includes(search) ||
+          item.phone.includes(search),
+      );
+    }
+
+    return {
+      documents: combinedData,
+      total: combinedData.length,
+      pagination: {
+        current: page,
+        total: Math.ceil(total / limit),
+        hasNext: page < Math.ceil(total / limit),
+        hasPrev: page > 1,
+      },
+    };
+  } catch (error) {
+    throw new Error(`Failed to get verified documents: ${error.message}`);
+  }
+};
+
 // Request Management Helpers
 const getRequestsWithUserInfo = async (requestType, filters = {}) => {
   try {
@@ -230,16 +340,14 @@ const getRequestsWithUserInfo = async (requestType, filters = {}) => {
     // Execute aggregation
     const results = await Profile.aggregate(pipeline);
 
-    // Get user info for each request
-    const userIds = results.map((result) => new ObjectId(result.userId));
-
-    const users = await auth.db
+    // Get all users and create a map (avoid ObjectId conversion issues)
+    const allUsers = await auth.db
       .collection('user')
-      .find({ _id: { $in: userIds } })
+      .find({})
       .toArray();
 
     const userMap = {};
-    users.forEach((user) => {
+    allUsers.forEach((user) => {
       userMap[user._id.toString()] = user;
     });
 
@@ -289,6 +397,11 @@ const getBuyRequests = async (filters = {}) => {
 
 const approveBuyRequest = async (requestId) => {
   try {
+    // Validate ObjectId format
+    if (!ObjectId.isValid(requestId)) {
+      throw new Error('Invalid request ID format');
+    }
+
     // Find the profile with this request
     const profile = await Profile.findOne({
       'requests._id': new ObjectId(requestId),
@@ -329,6 +442,11 @@ const approveBuyRequest = async (requestId) => {
 
 const rejectBuyRequest = async (requestId, reason) => {
   try {
+    // Validate ObjectId format
+    if (!ObjectId.isValid(requestId)) {
+      throw new Error('Invalid request ID format');
+    }
+
     const result = await Profile.updateOne(
       { 'requests._id': new ObjectId(requestId) },
       {
@@ -357,6 +475,11 @@ const getWithdrawRequests = async (filters = {}) => {
 
 const approveWithdrawRequest = async (requestId) => {
   try {
+    // Validate ObjectId format
+    if (!ObjectId.isValid(requestId)) {
+      throw new Error('Invalid request ID format');
+    }
+
     // Find the profile with this request
     const profile = await Profile.findOne({
       'requests._id': new ObjectId(requestId),
@@ -399,6 +522,11 @@ const approveWithdrawRequest = async (requestId) => {
 
 const rejectWithdrawRequest = async (requestId, reason) => {
   try {
+    // Validate ObjectId format
+    if (!ObjectId.isValid(requestId)) {
+      throw new Error('Invalid request ID format');
+    }
+
     const result = await Profile.updateOne(
       { 'requests._id': new ObjectId(requestId) },
       {
@@ -483,6 +611,7 @@ module.exports = {
   getAllUsers,
   updateUserStatus,
   getPendingDocuments,
+  getVerifiedDocuments,
   verifyUserDocuments,
   rejectUserDocuments,
   getBuyRequests,

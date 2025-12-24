@@ -31,6 +31,7 @@ router.patch('/users/:userId/status', adminController.updateUserStatus);
 
 // Document verification
 router.get('/documents/pending', adminController.getPendingDocuments);
+router.get('/documents/verified', adminController.getVerifiedDocuments);
 router.patch('/documents/:userId/verify', adminController.verifyDocuments);
 router.patch('/documents/:userId/reject', adminController.rejectDocuments);
 
